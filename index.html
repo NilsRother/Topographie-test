@@ -2,466 +2,253 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Europa Geographie Master</title>
+    <title>Geo-Master Europa</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { height: 100%; margin: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; overflow: hidden; background: #aad3df; }
-        
-        /* --- 1. GRUNDLAYOUT --- */
+        body, html { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #aad3df; }
         #map { height: 100vh; width: 100%; z-index: 1; }
-        
-        /* Hilfsklassen */
+
+        /* --- UI ELEMENTE --- */
         .hidden { display: none !important; }
-        .flex { display: flex; }
 
-        /* --- 2. HAUPTMENÜ BUTTON --- */
-        #menu-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 3000;
-            background: white;
-            border: none;
-            border-radius: 50%;
-            width: 50px;
-            height: 50px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            cursor: pointer;
-            font-size: 24px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.2s;
-        }
-        #menu-btn:hover { transform: scale(1.1); }
-
-        /* --- 3. DAS EINSTELLUNGS-MENÜ (OVERLAY) --- */
-        #main-menu {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(5px);
-            z-index: 4000;
-            display: none; /* Standardmäßig versteckt */
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            box-sizing: border-box;
+        /* Menü-Button (Zahnrad) */
+        #menu-toggle {
+            position: absolute; top: 15px; left: 15px; z-index: 3000;
+            background: white; border: none; border-radius: 50%; width: 45px; height: 45px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2); cursor: pointer; font-size: 20px;
         }
 
-        .menu-card {
-            background: white;
-            padding: 30px;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
-            width: 100%;
-            max-width: 400px;
-            text-align: center;
+        /* Haupt-Overlay (Einstellungen) */
+        #settings-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(5px);
+            z-index: 4000; display: flex; align-items: center; justify-content: center;
         }
 
-        .menu-title { font-size: 1.8rem; font-weight: 800; color: #2c3e50; margin-bottom: 5px; }
-        .menu-subtitle { color: #7f8c8d; margin-bottom: 25px; }
-
-        /* Layer Toggle Schalter im Menü */
-        .layer-toggles { text-align: left; margin-bottom: 25px; background: #f8f9fa; padding: 15px; border-radius: 10px; }
-        .toggle-item { display: flex; align-items: center; margin-bottom: 10px; cursor: pointer; }
-        .toggle-item input { margin-right: 10px; transform: scale(1.3); cursor: pointer; }
-        .toggle-label { font-size: 1rem; color: #333; }
+        .card {
+            background: white; padding: 25px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 90%; max-width: 380px; text-align: center;
+        }
 
         .mode-btn {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin-bottom: 10px;
-            border: none;
-            border-radius: 12px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
+            width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 10px;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.2s;
         }
-        .btn-classic { background: #f39c12; color: white; }
         .btn-exam { background: #3498db; color: white; }
-        .btn-close { background: #95a5a6; color: white; margin-top: 10px; }
-        .mode-btn:hover { transform: scale(1.02); opacity: 0.9; }
+        .btn-classic { background: #f39c12; color: white; }
+        .btn-close { background: #ecf0f1; color: #333; margin-top: 15px; }
 
-        /* --- 4. SUCHLEISTE (Für den Erkundungsmodus) --- */
-        #search-container {
-            position: absolute;
-            top: 20px;
-            left: 80px; /* Rechts neben dem Menü Button */
-            z-index: 2000;
-            width: calc(100% - 100px);
-            max-width: 350px;
-        }
-        #search-input {
-            width: 100%; padding: 12px 20px; border: none; border-radius: 30px;
-            font-size: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); outline: none;
-        }
-        #search-results {
-            background: white; margin-top: 5px; border-radius: 10px; max-height: 300px; overflow-y: auto; display: none;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-        }
-        .search-item { padding: 10px 15px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
-        .search-item:hover { background: #f0f8ff; }
+        /* Layer-Auswahl */
+        .layer-settings { text-align: left; margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 10px; }
+        .layer-settings label { display: block; margin: 5px 0; cursor: pointer; }
 
-        /* --- 5. UI: KLASSISCHES QUIZ (Panel unten) --- */
-        #classic-panel {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-            z-index: 2000; background: white; padding: 15px 25px; border-radius: 12px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.3); text-align: center; min-width: 300px;
-        }
-        .classic-question { font-size: 1.3em; font-weight: bold; color: #2c3e50; margin: 10px 0; }
-        .classic-feedback { font-weight: bold; height: 24px; }
-        .correct { color: #27ae60; } .wrong { color: #c0392b; }
-
-        /* --- 6. UI: PRÜFUNGS-MODUS (App Style) --- */
-        #exam-panel {
+        /* Quiz-Panel (unten) */
+        .quiz-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px; background: rgba(255, 255, 255, 0.98);
-            border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 2000;
-            padding: 20px; display: flex; flex-direction: column; gap: 10px;
+            width: 90%; max-width: 400px; background: white; border-radius: 15px;
+            padding: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 2000;
         }
-        .exam-progress { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
-        .exam-bar { height: 100%; background: #3498db; width: 0%; transition: width 0.3s; }
-        .exam-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .exam-btn {
-            background: white; border: 2px solid #e0e0e0; padding: 10px; border-radius: 8px;
-            font-weight: 600; color: #555; cursor: pointer;
-        }
-        .exam-btn.correct { background: #2ecc71; color: white; border-color: #27ae60; }
-        .exam-btn.wrong { background: #e74c3c; color: white; border-color: #c0392b; }
 
-        /* Stop Button (Global für beide Quizze) */
-        .stop-btn {
-            position: absolute; top: 20px; right: 20px; z-index: 3000;
+        /* Multiple Choice Buttons */
+        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .opt-btn { 
+            background: #f8f9fa; border: 2px solid #ddd; padding: 10px; border-radius: 8px;
+            cursor: pointer; font-weight: 600; font-size: 0.9rem;
+        }
+        .opt-btn.correct { background: #2ecc71 !important; color: white; border-color: #27ae60; }
+        .opt-btn.wrong { background: #e74c3c !important; color: white; border-color: #c0392b; }
+
+        .progress-bar { height: 6px; background: #eee; border-radius: 3px; margin-bottom: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #3498db; width: 0%; transition: width 0.3s; }
+
+        /* Beenden Button */
+        .exit-btn {
+            position: absolute; top: 15px; right: 15px; z-index: 3000;
             background: #e74c3c; color: white; border: none; padding: 8px 15px;
-            border-radius: 20px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            border-radius: 20px; font-weight: bold; cursor: pointer;
         }
-
     </style>
 </head>
 <body>
 
-<button id="menu-btn" onclick="toggleMenu()">⚙️</button>
+<button id="menu-toggle" onclick="toggleSettings()">⚙️</button>
+<button id="exit-quiz" class="exit-btn hidden" onclick="stopQuiz()">Quiz Beenden</button>
 
-<div id="search-container">
-    <input type="text" id="search-input" placeholder="🔍 Suche nach Ort...">
-    <div id="search-results"></div>
-</div>
-
-<button id="global-stop-btn" class="stop-btn hidden" onclick="stopAnyQuiz()">Beenden ✕</button>
-
-<div id="main-menu">
-    <div class="menu-card">
-        <h2 class="menu-title">Geographie Master</h2>
-        <p class="menu-subtitle">Wähle deinen Modus & Layer</p>
+<div id="settings-overlay">
+    <div class="card">
+        <h2>Europa Geo-Master</h2>
+        <p style="color: #666;">Wähle einen Modus:</p>
         
-        <div class="layer-toggles">
-            <div style="font-size:0.8em; color:#999; margin-bottom:10px; text-transform:uppercase; font-weight:bold;">Sichtbare Ebenen</div>
-            <label class="toggle-item"><input type="checkbox" checked onchange="toggleLayer('gebirge', this)"> <span class="toggle-label">🏔️ Gebirge</span></label>
-            <label class="toggle-item"><input type="checkbox" checked onchange="toggleLayer('fluesse', this)"> <span class="toggle-label">〰️ Flüsse</span></label>
-            <label class="toggle-item"><input type="checkbox" checked onchange="toggleLayer('staedte', this)"> <span class="toggle-label">🏙️ Städte</span></label>
-            <label class="toggle-item"><input type="checkbox" checked onchange="toggleLayer('tiefland', this)"> <span class="toggle-label">🌿 Tiefländer</span></label>
+        <button class="mode-btn btn-exam" onclick="startQuiz('exam')">🎓 Fahrschul-Modus (A, B, C)</button>
+        <button class="mode-btn btn-classic" onclick="startQuiz('classic')">📍 Klassisch (Auf Karte zeigen)</button>
+        
+        <div class="layer-settings">
+            <small><b>EBENEN:</b></small>
+            <label><input type="checkbox" checked onchange="toggleL('gebirge', this)"> Gebirge</label>
+            <label><input type="checkbox" checked onchange="toggleL('fluesse', this)"> Flüsse</label>
+            <label><input type="checkbox" checked onchange="toggleL('staedte', this)"> Städte</label>
         </div>
 
-        <button class="mode-btn btn-classic" onclick="startMode('classic')">📍 Klassisches Quiz<br><span style="font-size:0.8em; font-weight:normal;">(Finde den Ort auf der Karte)</span></button>
-        <button class="mode-btn btn-exam" onclick="startMode('exam')">🎓 Prüfungs-Modus<br><span style="font-size:0.8em; font-weight:normal;">(Multiple Choice Fragen)</span></button>
-        <button class="mode-btn btn-close" onclick="toggleMenu()">Karte erkunden</button>
+        <button class="mode-btn btn-close" onclick="toggleSettings()">Nur Karte erkunden</button>
     </div>
 </div>
 
-<div id="classic-panel" class="hidden">
-    <div id="classic-score" style="color:#7f8c8d; font-size:0.9em;">Punkte: 0</div>
-    <div class="classic-question" id="classic-question">Wo liegt...?</div>
-    <div class="classic-feedback" id="classic-feedback"></div>
-    <button onclick="skipClassic()" style="margin-top:10px; background:#95a5a6; border:none; color:white; padding:5px 15px; border-radius:15px; cursor:pointer;">Überspringen</button>
+<div id="exam-panel" class="quiz-panel hidden">
+    <div class="progress-bar"><div id="exam-fill" class="progress-fill"></div></div>
+    <div id="exam-question" style="font-weight: bold; text-align: center; margin-bottom: 10px;">Was ist das?</div>
+    <div id="exam-options" class="options-grid"></div>
 </div>
 
-<div id="exam-panel" class="hidden">
-    <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#888;">
-        <span id="exam-counter">Frage 1/10</span>
-        <span id="exam-score-txt">0%</span>
-    </div>
-    <div class="exam-progress"><div class="exam-bar" id="exam-bar"></div></div>
-    <div style="text-align:center; font-weight:bold; margin-top:10px; font-size:1.1em;" id="exam-question-text">Wie heißt dieser Ort?</div>
-    <div class="exam-grid" id="exam-options"></div>
+<div id="classic-panel" class="quiz-panel hidden" style="text-align: center;">
+    <div id="classic-target" style="font-size: 1.2rem; font-weight: bold;">Suche: ...</div>
+    <div id="classic-feedback" style="margin-top: 5px; height: 20px;"></div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-    // --- STATE MANAGEMENT ---
-    const MODES = { EXPLORE: 'explore', CLASSIC: 'classic', EXAM: 'exam' };
-    let currentMode = MODES.EXPLORE;
-    let map;
-    
-    // Daten Container
-    let searchIndex = [];
-    
-    // Layer Gruppen
-    const layers = {
-        gebirge: L.layerGroup(),
-        fluesse: L.layerGroup(),
-        staedte: L.layerGroup(),
-        tiefland: L.layerGroup(),
-        laender: L.layerGroup() // Immer an, aber im Hintergrund
+    // 1. Karte Initialisieren (Mit Standard OSM für bessere Stabilität)
+    const map = L.map('map', { zoomControl: false }).setView([50, 15], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 2. Layer Gruppen
+    const groups = {
+        gebirge: L.layerGroup().addTo(map),
+        fluesse: L.layerGroup().addTo(map),
+        staedte: L.layerGroup().addTo(map)
     };
 
-    // --- INITIALISIERUNG ---
-    function initMap() {
-        map = L.map('map', { zoomControl: false }).setView([50.0, 15.0], 4);
-        
-        // Base Layers
-        L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '© OpenTopoMap' }).addTo(map);
-        
-        // Layer hinzufügen
-        Object.values(layers).forEach(l => l.addTo(map));
-        
-        // Ländergrenzen laden
-        fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
-            .then(res => res.json())
-            .then(data => L.geoJson(data, { 
-                style: { color: "#555", weight: 1, fillOpacity: 0, dashArray: '5, 5' }, 
-                interactive: false 
-            }).addTo(layers.laender));
+    let allItems = [];
 
-        renderData();
+    // 3. Daten hinzufügen (Beispielhaft - hier kommen deine Original-Daten rein)
+    function addP(group, name, type, coords, isPoint=false) {
+        let layer;
+        if(isPoint) {
+            layer = L.circleMarker(coords, { radius: 6, color: 'black', fillColor: 'white', fillOpacity: 1 });
+        } else {
+            layer = L.polygon(coords, { color: type==='Gebirge'?'#8B4513':'#2980b9', weight: 2 });
+        }
+        layer.on('click', (e) => onMapClick(e, name, layer));
+        layer.addTo(groups[group]);
+        allItems.push({ name, type, layer, group: groups[group] });
     }
 
-    // --- DATEN & RENDERING ---
-    // (Styles)
-    const sGebirge = { color: '#8B4513', fillColor: '#A0522D', weight: 1, fillOpacity: 0.4 };
-    const sTiefland = { color: '#228B22', fillColor: '#90EE90', weight: 1, fillOpacity: 0.3 };
-    const sFluss = { color: '#1e3799', weight: 3, opacity: 0.8 };
-    const sStadt = { radius: 6, color: '#000', fillColor: '#fff', weight: 1.5, fillOpacity: 1 };
-    
-    // DATEN (Gleiche Datenbasis)
-    const dGebirge = [
-        {n: "Skandinavisches Gebirge", c: [[58.5,6.0], [61.0,7.5], [63.0,11.0], [68.0,18.0], [70.5,23.0], [69.5,26.0], [66.0,19.0], [61.5,12.0], [59.0,9.0]]},
-        {n: "Alpen", c: [[43.8,7.2], [45.0,6.5], [46.5,8.0], [47.5,9.5], [47.6,12.5], [47.5,14.5], [48.2,16.2], [47.0,15.0], [46.0,11.0], [44.2,7.5]]},
-        {n: "Pyrenäen", c: [[43.3,-1.8], [42.8,0.0], [42.6,2.0], [42.4,3.2], [42.8,3.2], [43.1,1.5], [43.5,-1.5]]},
-        {n: "Karpaten", c: [[48.2,17.0], [49.5,19.5], [49.8,22.0], [48.5,24.5], [47.0,26.5], [45.5,26.8], [44.8,24.5], [45.5,22.0], [47.0,22.5], [48.0,20.0]]},
-        {n: "Ural", c: [[68.0,66.0], [66.0,65.0], [62.0,59.0], [59.0,59.0], [55.0,59.0], [51.0,58.0], [51.0,61.0], [55.0,61.5], [62.0,61.0], [67.0,67.5]]}
-    ];
-    const dFluesse = [
-        {n: "Donau", c: [[48.0,8.2], [48.5,10.0], [48.4,13.5], [48.2,16.4], [47.8,19.0], [45.8,18.8], [44.8,20.5], [44.5,22.5], [43.7,25.0], [44.2,27.5], [45.2,29.6]]},
-        {n: "Rhein", c: [[46.6,9.4], [47.6,9.5], [47.5,7.6], [48.5,7.9], [50.0,8.3], [50.5,7.3], [51.8,6.0], [51.9,4.1]]},
-        {n: "Wolga", c: [[57.2,32.5], [56.8,35.5], [57.8,38.5], [56.5,43.5], [56.0,46.0], [56.2,49.5], [55.0,49.0], [53.2,49.0], [52.0,47.5], [51.0,46.0], [48.7,44.5], [47.0,46.5], [45.8,48.0]]},
-        {n: "Elbe", c: [[50.7,15.6], [51.0,14.0], [51.5,13.5], [52.2,12.0], [53.0,11.0], [53.5,9.5], [53.9,8.6]]},
-        {n: "Themse", c: [[51.7,-2.0], [51.6,-1.0], [51.5,-0.1], [51.5,0.7]]}
-    ];
-    const dStaedte = [
-        {n: "Berlin", c: [52.5200, 13.4050]}, {n: "Paris", c: [48.8566, 2.3522]}, {n: "London", c: [51.5074, -0.1278]},
-        {n: "Rom", c: [41.9028, 12.4964]}, {n: "Madrid", c: [40.4168, -3.7038]}, {n: "Moskau", c: [55.7558, 37.6173]}
-    ];
-    const dTiefland = [
-        {n: "Norddt. Tiefland", c: [[52.0,6.0], [54.0,7.5], [54.5,13.5], [52.5,14.5], [51.5,11.0]]},
-        {n: "Poebene", c: [[44.8,7.5], [45.5,9.5], [45.5,12.5], [44.5,12.0]]}
-    ];
+    // --- HIER DEINE DATEN (Platzhalter) ---
+    addP('gebirge', 'Alpen', 'Gebirge', [[47,10], [48,12], [47,14], [46,12]]);
+    addP('gebirge', 'Pyrenäen', 'Gebirge', [[42,0], [43,1], [42,2]]);
+    addP('staedte', 'Berlin', 'Stadt', [52.5, 13.4], true);
+    addP('staedte', 'Paris', 'Stadt', [48.8, 2.3], true);
+    // ---------------------------------------
 
-    function addToMap(group, type, data, isLine = false, isPoint = false) {
-        data.forEach(item => {
-            let layer;
-            if (isPoint) {
-                layer = L.circleMarker(item.c, sStadt);
-            } else if (isLine) {
-                // Unsichtbarer dicker Bereich für Klickbarkeit bei Flüssen
-                layer = L.featureGroup([
-                    L.polyline(item.c, sFluss),
-                    L.polyline(item.c, {weight: 20, opacity: 0})
-                ]);
-            } else {
-                let style = type === "Gebirge" ? sGebirge : sTiefland;
-                layer = L.polygon(item.c, style);
-            }
+    // 4. Quiz Logik
+    let currentMode = 'explore';
+    let currentTarget = null;
+    let examStep = 0;
+    let score = 0;
 
-            // Metadaten anhängen
-            layer.quizData = { name: item.n, type: type };
-            
-            // Zentraler Click Handler
-            layer.on('click', (e) => handleMapClick(e, layer));
-            
-            layer.addTo(group);
-            
-            // In Suchindex aufnehmen (wir merken uns die "Hauptlayer" für Styles)
-            let visualLayer = (isLine) ? layer.getLayers()[0] : layer;
-            searchIndex.push({ 
-                name: item.n, 
-                type: type, 
-                layer: visualLayer, // Zum Färben
-                groupLayer: layer,  // Zum Zoomen
-                parentGroup: group 
-            });
+    function startQuiz(mode) {
+        currentMode = mode;
+        toggleSettings(false);
+        document.getElementById('exit-quiz').classList.remove('hidden');
+        
+        if(mode === 'exam') {
+            examStep = 0; score = 0;
+            document.getElementById('exam-panel').classList.remove('hidden');
+            nextExamQ();
+        } else {
+            document.getElementById('classic-panel').classList.remove('hidden');
+            nextClassicQ();
+        }
+    }
+
+    function stopQuiz() {
+        currentMode = 'explore';
+        document.getElementById('exit-quiz').classList.add('hidden');
+        document.getElementById('exam-panel').classList.add('hidden');
+        document.getElementById('classic-panel').classList.add('hidden');
+        resetStyles();
+        map.setView([50, 15], 4);
+    }
+
+    // FAHRSCHUL-LOGIK
+    function nextExamQ() {
+        const visible = allItems.filter(i => map.hasLayer(i.group));
+        currentTarget = visible[Math.floor(Math.random() * visible.length)];
+        
+        // Markierung auf Karte
+        resetStyles();
+        currentTarget.layer.setStyle({ color: '#ff00ff', weight: 5 });
+        if(currentTarget.layer.getBounds) map.fitBounds(currentTarget.layer.getBounds(), {padding:[100,100]});
+        else map.setView(currentTarget.layer.getLatLng(), 6);
+
+        // Buttons
+        const options = [currentTarget.name];
+        while(options.length < 4) {
+            let r = visible[Math.floor(Math.random() * visible.length)].name;
+            if(!options.includes(r)) options.push(r);
+        }
+        options.sort(() => Math.random() - 0.5);
+
+        const container = document.getElementById('exam-options');
+        container.innerHTML = '';
+        options.forEach(opt => {
+            const b = document.createElement('button');
+            b.className = 'opt-btn';
+            b.innerText = opt;
+            b.onclick = () => {
+                if(opt === currentTarget.name) {
+                    b.classList.add('correct');
+                    setTimeout(nextExamQ, 1000);
+                } else {
+                    b.classList.add('wrong');
+                }
+            };
+            container.appendChild(b);
         });
     }
 
-    function renderData() {
-        addToMap(layers.gebirge, "Gebirge", dGebirge);
-        addToMap(layers.fluesse, "Fluss", dFluesse, true);
-        addToMap(layers.staedte, "Stadt", dStaedte, false, true);
-        addToMap(layers.tiefland, "Landschaft", dTiefland);
+    // KLASSIK-LOGIK
+    function nextClassicQ() {
+        const visible = allItems.filter(i => map.hasLayer(i.group));
+        currentTarget = visible[Math.floor(Math.random() * visible.length)];
+        document.getElementById('classic-target').innerText = `Suche: ${currentTarget.name}`;
+        document.getElementById('classic-feedback').innerText = "";
     }
 
-    // --- INTERAKTIONS-LOGIK ---
-
-    function handleMapClick(e, layerGroupOrLayer) {
-        let data = layerGroupOrLayer.quizData;
-
-        if (currentMode === MODES.EXPLORE) {
-            // Popup anzeigen
-            L.popup()
-                .setLatLng(e.latlng)
-                .setContent(`<b>${data.type}</b><br>${data.name}`)
-                .openOn(map);
-        } 
-        else if (currentMode === MODES.CLASSIC) {
-            checkClassicAnswer(data, layerGroupOrLayer);
-        }
-        // Im Exam Modus sind Klicks auf die Karte deaktiviert
-    }
-
-    // --- MENÜ & STEUERUNG ---
-
-    function toggleMenu() {
-        let el = document.getElementById('main-menu');
-        el.style.display = (el.style.display === 'flex') ? 'none' : 'flex';
-    }
-
-    function toggleLayer(key, checkbox) {
-        if (checkbox.checked) {
-            map.addLayer(layers[key]);
-        } else {
-            map.removeLayer(layers[key]);
+    function onMapClick(e, name, layer) {
+        if(currentMode === 'explore') {
+            L.popup().setLatLng(e.latlng).setContent(`<b>${name}</b>`).openOn(map);
+        } else if(currentMode === 'classic') {
+            if(name === currentTarget.name) {
+                layer.setStyle({ color: '#2ecc71', weight: 5 });
+                document.getElementById('classic-feedback').innerHTML = "<b style='color:green'>Richtig!</b>";
+                setTimeout(nextClassicQ, 1000);
+            } else {
+                document.getElementById('classic-feedback').innerHTML = `<span style='color:red'>Das war ${name}</span>`;
+            }
         }
     }
 
-    function startMode(mode) {
-        currentMode = mode;
-        toggleMenu(); // Menü schließen
-        
-        // UI Reset
-        document.getElementById('search-container').classList.add('hidden');
-        document.getElementById('menu-btn').classList.add('hidden');
-        document.getElementById('global-stop-btn').classList.remove('hidden');
-        map.closePopup();
-        resetStyles();
-
-        if (mode === MODES.CLASSIC) {
-            initClassicQuiz();
-        } else if (mode === MODES.EXAM) {
-            initExamQuiz();
-        }
+    // Hilfsfunktionen
+    function toggleSettings(show) {
+        const el = document.getElementById('settings-overlay');
+        el.style.display = (show === false || el.style.display === 'flex') ? 'none' : 'flex';
     }
 
-    function stopAnyQuiz() {
-        currentMode = MODES.EXPLORE;
-        
-        // UI Reset
-        document.getElementById('classic-panel').classList.add('hidden');
-        document.getElementById('exam-panel').classList.add('hidden');
-        document.getElementById('search-container').classList.remove('hidden');
-        document.getElementById('menu-btn').classList.remove('hidden');
-        document.getElementById('global-stop-btn').classList.add('hidden');
-        
-        resetStyles();
-        map.setView([50.0, 15.0], 4);
+    function toggleL(id, cb) {
+        if(cb.checked) map.addLayer(groups[id]);
+        else map.removeLayer(groups[id]);
     }
 
     function resetStyles() {
-        searchIndex.forEach(item => {
-            let l = item.layer;
-            if (item.type === "Stadt") l.setStyle(sStadt);
-            else if (item.type === "Fluss") l.setStyle(sFluss);
-            else if (item.type === "Gebirge") l.setStyle(sGebirge);
-            else l.setStyle(sTiefland);
+        allItems.forEach(i => {
+            if(i.layer.setStyle) i.layer.setStyle({ color: i.type==='Gebirge'?'#8B4513':'#2980b9', weight: 2 });
         });
     }
-
-    // --- 1. LOGIK: KLASSISCHES QUIZ (FINDE X) ---
-    
-    let classicPool = [];
-    let classicTarget = null;
-    let classicScore = 0;
-
-    function initClassicQuiz() {
-        document.getElementById('classic-panel').classList.remove('hidden');
-        classicPool = getVisibleItems();
-        classicScore = 0;
-        nextClassicQuestion();
-    }
-
-    function nextClassicQuestion() {
-        if (classicPool.length === 0) {
-            document.getElementById('classic-question').innerText = "Alle gefunden!";
-            return;
-        }
-        let idx = Math.floor(Math.random() * classicPool.length);
-        classicTarget = classicPool[idx];
-        document.getElementById('classic-question').innerText = `Wo ist: ${classicTarget.name}?`;
-        document.getElementById('classic-feedback').innerText = "";
-        document.getElementById('classic-score').innerText = "Punkte: " + classicScore;
-    }
-
-    function checkClassicAnswer(clickedData, layerObj) {
-        if (!classicTarget) return;
-        
-        // Hole den visuellen Layer zum Färben
-        let visualLayer = (clickedData.type === 'Fluss') ? layerObj.getLayers()[0] : layerObj;
-
-        if (clickedData.name === classicTarget.name) {
-            document.getElementById('classic-feedback').innerHTML = "<span class='correct'>Richtig!</span>";
-            visualLayer.setStyle({ color: '#2ecc71', fillColor: '#2ecc71' }); // Grün
-            classicScore++;
-            classicPool = classicPool.filter(i => i.name !== classicTarget.name);
-            setTimeout(nextClassicQuestion, 1000);
-        } else {
-            document.getElementById('classic-feedback').innerHTML = "<span class='wrong'>Das ist " + clickedData.name + "</span>";
-        }
-    }
-    
-    function skipClassic() {
-        // Zeige Lösung (Magenta)
-        classicTarget.layer.setStyle({ color: '#ff00ff', weight: 5 });
-        classicPool = classicPool.filter(i => i.name !== classicTarget.name);
-        setTimeout(() => {
-            resetStyles(); // Farbe weg
-            nextClassicQuestion();
-        }, 1500);
-    }
-
-    // --- 2. LOGIK: PRÜFUNGS-MODUS (MULTIPLE CHOICE) ---
-
-    let examPool = [];
-    let examIndex = 0;
-    let examCorrect = 0;
-    let examActive = false;
-
-    function initExamQuiz() {
-        document.getElementById('exam-panel').classList.remove('hidden');
-        let visible = getVisibleItems();
-        // Mische und nimm max 10
-        examPool = visible.sort(() => 0.5 - Math.random()).slice(0, 10);
-        examIndex = 0;
-        examCorrect = 0;
-        examActive = true;
-        loadExamQuestion();
-    }
-
-    function loadExamQuestion() {
-        if (examIndex >= examPool.length) {
-            // Ende
-            document.getElementById('exam-question-text').innerText = `Ergebnis: ${examCorrect} von ${examPool.length}`;
-            document.getElementById('exam-options').innerHTML = '<button class="exam-btn" onclick="stopAnyQuiz()">Zurück zur Karte</button>';
-            return;
-        }
-
-        let item = examPool[examIndex];
-        
-        // UI
-        document.getElementById('exam-counter').innerText = `Frage ${examIndex + 1}/${examPool.length}`;
-        document.getElementById('exam-bar').style.width = ((
+</script>
+</body>
+</html>
