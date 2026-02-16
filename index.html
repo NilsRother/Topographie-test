@@ -2,13 +2,12 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Europa Topographie - Pro Quiz</title>
+    <title>Europa GIS Profi-Karte</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
         
-        /* KARTE */
         #map { height: 100vh; width: 100%; background: #eef2f3; z-index: 1; }
         
         /* UI ELEMENTE */
@@ -18,26 +17,10 @@
             padding: 10px !important;
         }
 
-        /* POPUP DESIGN (Google Style) */
+        /* POPUP DESIGN */
         .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 3px 14px rgba(0,0,0,0.4); }
         .cat-header { font-size: 0.7em; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 2px; }
         .item-name { font-size: 1.1em; font-weight: 600; color: #333; }
-
-        /* SUCHE */
-        #search-container {
-            position: absolute; top: 20px; left: 60px; z-index: 1000; width: 320px;
-            transition: opacity 0.3s;
-        }
-        #search-input {
-            width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
-            font-size: 15px; outline: none; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-        }
-        #search-results {
-            background: white; border-radius: 8px; margin-top: 5px; max-height: 300px;
-            overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-        .search-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
-        .search-item:hover { background-color: #f7f7f7; }
 
         /* QUIZ PANEL */
         #quiz-panel {
@@ -51,31 +34,27 @@
             transition: background 0.2s; margin: 0 5px;
         }
         .quiz-btn:hover { background: #1557b0; }
-        .quiz-btn.secondary { background: #dadce0; color: #3c4043; }
-        .quiz-btn.secondary:hover { background: #bdc1c6; }
         .quiz-btn.stop { background: #ea4335; color: white; }
-        .quiz-btn.stop:hover { background: #d93025; }
 
         #quiz-question { font-size: 1.2em; font-weight: bold; color: #202124; margin: 8px 0; }
         #quiz-feedback { height: 24px; font-weight: 600; font-size: 0.95em; margin-bottom: 5px; }
-        .correct { color: #1e8e3e; }
-        .wrong { color: #d93025; }
-
-        /* Verstecke Suche im Quiz Modus */
-        body.quiz-mode #search-container { opacity: 0; pointer-events: none; }
+        
+        /* Loading Spinner */
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9); padding: 20px; border-radius: 10px;
+            z-index: 3000; font-weight: bold; box-shadow: 0 0 15px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
 
-<div id="search-container">
-    <input type="text" id="search-input" placeholder="🔍 Suche (z.B. Rhein, Alpen)...">
-    <div id="search-results"></div>
-</div>
+<div id="loading">📡 Lade GIS-Daten...</div>
 
 <div id="quiz-panel">
     <div id="quiz-start-view">
-        <h3 style="margin:0 0 10px 0; color:#444;">Geographie Trainer</h3>
-        <p style="font-size:0.9em; color:#666; margin-bottom:15px;">Erkennst du die markierten Gebiete?</p>
+        <h3 style="margin:0 0 10px 0; color:#444;">GIS Topographie Quiz</h3>
+        <p style="font-size:0.9em; color:#666; margin-bottom:15px;">Finde die Objekte auf der Karte.</p>
         <button class="quiz-btn" onclick="startQuiz()">Quiz Starten</button>
     </div>
     
@@ -84,7 +63,6 @@
         <div id="quiz-question">Bereit?</div>
         <div id="quiz-feedback"></div>
         <div style="margin-top:10px;">
-            <button class="quiz-btn secondary" onclick="skipQuestion()">Überspringen</button>
             <button class="quiz-btn stop" onclick="stopQuiz()">Beenden</button>
         </div>
     </div>
@@ -96,52 +74,62 @@
 
 <script>
     // --- 1. SETUP ---
-    // Wir nutzen OpenTopoMap für das physische Relief (sieht am besten aus für Gebirge)
-    var map = L.map('map', { zoomControl: false }).setView([49.5, 12.0], 5);
+    var map = L.map('map', { zoomControl: false }).setView([50.0, 10.0], 5);
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     var openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-        maxZoom: 17,
-        attribution: '© OpenTopoMap'
+        maxZoom: 17, attribution: '© OpenTopoMap'
     }).addTo(map);
 
     var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Tiles © Esri'
     });
 
-    // Layer Gruppen
     var lgGebirge = L.layerGroup();
     var lgFluesse = L.layerGroup();
     var lgStaedte = L.layerGroup();
     var lgLaender = L.layerGroup();
 
-    // --- 2. STYLING (GOOGLE MAPS LOOK) ---
+    // --- 2. STYLING (Google Maps GIS Style) ---
+
+    // Style für Länder
+    const styleCountry = { color: "#999", weight: 1, fillOpacity: 0, dashArray: '4, 4' };
+
+    // Style für Flüsse (Doppel-Linie Effekt)
+    // GeoJSON erlaubt keine zwei Styles direkt, daher der Trick später im Code
+    const styleRiverBorder = { color: '#406185', weight: 5, opacity: 0.8 };
+    const styleRiverWater = { color: '#7FA8D7', weight: 2.5, opacity: 1 };
     
-    // Gebirge: Dunkle Kontur (Outline), Transparente Füllung
-    const styleGebirge = {
-        color: '#5d4037',      // Dunkelbraune Kontur
-        weight: 2,             // Scharfe Linie
-        fillColor: '#8d6e63',  // Helleres Braun innen
-        fillOpacity: 0.35,     // Transparent damit Karte durchscheint
-        lineJoin: 'round'
+    // Style für Gebirge (Manuell definiert, da GIS-Daten für Gebirgsflächen oft fehlen)
+    const styleGebirge = { color: '#5d4037', weight: 2, fillColor: '#8d6e63', fillOpacity: 0.35 };
+
+    // --- 3. DATEN CONFIG ---
+
+    // Übersetzungstabelle: GIS Name (Englisch) -> Quiz Name (Deutsch)
+    // Nur Flüsse, die hier stehen, werden auf der Karte angezeigt!
+    const riverTranslation = {
+        "Danube": "Donau",
+        "Rhine": "Rhein",
+        "Elbe": "Elbe",
+        "Volga": "Wolga",
+        "Loire": "Loire",
+        "Po": "Po",
+        "Thames": "Themse",
+        "Seine": "Seine",
+        "Tagus": "Tajo",
+        "Douro": "Duero",
+        "Ebro": "Ebro",
+        "Oder": "Oder",
+        "Vistula": "Weichsel",
+        "Dnieper": "Dnipro",
+        "Don": "Don",
+        "Dniester": "Dnister",
+        "Rhone": "Rhône",
+        "Garonne": "Garonne",
+        "Meuse": "Maas",
+        "Weser": "Weser",
+        "Glomma": "Glama"
     };
-
-    const styleGebirgeHover = {
-        weight: 4,
-        fillOpacity: 0.6,
-        color: '#3e2723'
-    };
-
-    // Flüsse: "Double Stroke" Technik (Ufer + Wasser)
-    // Untere Linie (Ufer)
-    const styleFlussBorder = { color: '#406185', weight: 6, opacity: 0.8, lineCap: 'round' };
-    // Obere Linie (Wasser)
-    const styleFlussWater = { color: '#7FA8D7', weight: 3, opacity: 1, lineCap: 'round' };
-    
-    const styleFlussHoverBorder = { color: '#2c3e50', weight: 8, opacity: 1 };
-    const styleFlussHoverWater = { color: '#a9cce3', weight: 4, opacity: 1 };
-
-    // --- 3. DATEN LADEN & RENDERN ---
 
     let searchIndex = [];
     let quizActive = false;
@@ -149,80 +137,90 @@
     let currentItem = null;
     let score = 0;
 
-    // A. Ländergrenzen (für Orientierung)
-    fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
-        .then(res => res.json())
-        .then(data => {
-            L.geoJson(data, {
-                style: { color: "#888", weight: 1, fillOpacity: 0, dashArray: '4, 4' },
-                interactive: false 
-            }).addTo(lgLaender);
-        });
+    // --- 4. DATEN LADEN (FETCH) ---
 
-    // B. Funktion für GEBIRGE (Area)
+    async function loadData() {
+        try {
+            // A. Ländergrenzen laden (Natural Earth 110m)
+            const resCountries = await fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson');
+            const dataCountries = await resCountries.json();
+            L.geoJson(dataCountries, {
+                style: styleCountry,
+                interactive: false
+            }).addTo(lgLaender);
+
+            // B. Flüsse laden (Natural Earth 50m - Detailreich!)
+            const resRivers = await fetch('https://raw.githubusercontent.com/martynafford/natural-earth-geojson/master/50m_physical/ne_50m_rivers_lake_centerlines.json');
+            const dataRivers = await resRivers.json();
+
+            // C. Flüsse verarbeiten
+            // Wir müssen jeden Fluss zweimal hinzufügen für den Rand-Effekt
+            
+            // Layer 1: Ufer (Dicker Rand)
+            L.geoJson(dataRivers, {
+                filter: filterRivers,
+                style: styleRiverBorder,
+                interactive: false
+            }).addTo(lgFluesse);
+
+            // Layer 2: Wasser (Dünner Kern & Interaktion)
+            L.geoJson(dataRivers, {
+                filter: filterRivers,
+                style: styleRiverWater,
+                onEachFeature: (feature, layer) => {
+                    // Deutschen Namen holen
+                    let deName = riverTranslation[feature.properties.name] || riverTranslation[feature.properties.name_en];
+                    
+                    // Unsichtbare Klickzone vergrößern (Leaflet Trick: dickerer transparenter Stroke bei Hover simulieren)
+                    layer.quizData = { name: deName, type: "Fluss" };
+                    layer.on('click', (e) => handleClick(e, layer));
+                    
+                    // Hover Effekt
+                    layer.on('mouseover', () => { if(!quizActive) layer.setStyle({weight: 4, color: '#2980b9'}); });
+                    layer.on('mouseout', () => { if(!quizActive) layer.setStyle(styleRiverWater); });
+
+                    searchIndex.push({ name: deName, layer: layer, type: "Fluss", group: lgFluesse });
+                }
+            }).addTo(lgFluesse);
+
+            document.getElementById('loading').style.display = 'none';
+
+        } catch (error) {
+            console.error("Fehler beim Laden der GIS Daten:", error);
+            document.getElementById('loading').innerText = "Fehler beim Laden!";
+        }
+    }
+
+    // Filter-Funktion: Nur europäische Flüsse aus der Liste zulassen
+    function filterRivers(feature) {
+        let name = feature.properties.name;
+        let nameEn = feature.properties.name_en;
+        // Check ob der Name in unserer Übersetzungsliste steht
+        return riverTranslation.hasOwnProperty(name) || riverTranslation.hasOwnProperty(nameEn);
+    }
+
+    // --- 5. MANUELLE OBJEKTE (Gebirge & Städte) ---
+    // (Gebirge als Flächen sind in einfachen GIS-Daten selten gut, daher behalten wir die guten Polygone)
+
     function addGebirge(coords, name) {
         let p = L.polygon(coords, styleGebirge);
-        
-        // Metadaten
         p.quizData = { name: name, type: "Gebirge" };
-        
-        // Events
-        p.on('mouseover', () => { if(!quizActive) p.setStyle(styleGebirgeHover); });
-        p.on('mouseout', () => { if(!quizActive) p.setStyle(styleGebirge); });
         p.on('click', (e) => handleClick(e, p));
-
+        p.on('mouseover', () => { if(!quizActive) p.setStyle({fillOpacity: 0.6}); });
+        p.on('mouseout', () => { if(!quizActive) p.setStyle(styleGebirge); });
         p.addTo(lgGebirge);
         searchIndex.push({ name: name, layer: p, type: "Gebirge", group: lgGebirge });
     }
 
-    // C. Funktion für FLÜSSE (Multi-Line Rendering)
-    function addFluss(coords, name) {
-        // 1. Ufer (Breite Linie unten)
-        let border = L.polyline(coords, styleFlussBorder);
-        // 2. Wasser (Schmalere Linie oben)
-        let water = L.polyline(coords, styleFlussWater);
-        // 3. Unsichtbare Klickzone (sehr breit, für einfache Auswahl am Handy)
-        let clickZone = L.polyline(coords, { weight: 20, opacity: 0 });
-
-        // Gruppe erstellen
-        let group = L.featureGroup([border, water, clickZone]);
-        group.quizData = { name: name, type: "Fluss" };
-
-        // Hover Effekte auf die Gruppe anwenden
-        group.on('mouseover', () => {
-            if(!quizActive) {
-                border.setStyle(styleFlussHoverBorder);
-                water.setStyle(styleFlussHoverWater);
-            }
-        });
-        group.on('mouseout', () => {
-            if(!quizActive) {
-                border.setStyle(styleFlussBorder);
-                water.setStyle(styleFlussWater);
-            }
-        });
-        group.on('click', (e) => handleClick(e, group));
-
-        group.addTo(lgFluesse);
-        // Für Zoom-Logik speichern wir das Wasser-Layer als Referenz
-        searchIndex.push({ name: name, layer: water, type: "Fluss", group: lgFluesse, parent: group });
-    }
-
-    // D. Funktion für STÄDTE
     function addStadt(coord, name) {
-        let m = L.circleMarker(coord, { 
-            radius: 6, color: '#333', weight: 2, 
-            fillColor: '#fff', fillOpacity: 1 
-        });
+        let m = L.circleMarker(coord, { radius: 6, color: '#333', weight: 2, fillColor: '#fff', fillOpacity: 1 });
         m.quizData = { name: name, type: "Stadt" };
         m.on('click', (e) => handleClick(e, m));
         m.addTo(lgStaedte);
         searchIndex.push({ name: name, layer: m, type: "Stadt", group: lgStaedte });
     }
 
-    // --- 4. OBJEKTE ERSTELLEN ---
-
-    // Gebirge (Scharfe Koordinaten)
+    // Gebirge Daten
     addGebirge([[43.8,7.2], [45.0,6.5], [46.5,8.0], [47.5,9.5], [47.6,12.5], [47.5,14.5], [48.2,16.2], [47.0,15.0], [46.0,11.0], [44.2,7.5]], "Alpen");
     addGebirge([[43.3,-1.8], [42.8,0.0], [42.6,2.0], [42.4,3.2], [42.8,3.2], [43.1,1.5], [43.5,-1.5]], "Pyrenäen");
     addGebirge([[48.2,17.0], [49.5,19.5], [49.8,22.0], [48.5,24.5], [47.0,26.5], [45.5,26.8], [44.8,24.5], [45.5,22.0], [47.0,22.5], [48.0,20.0]], "Karpaten");
@@ -230,34 +228,16 @@
     addGebirge([[68.0,66.0], [66.0,65.0], [62.0,59.0], [59.0,59.0], [55.0,59.0], [51.0,58.0], [51.0,61.0], [55.0,61.5], [62.0,61.0], [67.0,67.5]], "Ural");
     addGebirge([[58.5,6.0], [61.0,7.5], [63.0,11.0], [68.0,18.0], [70.5,23.0], [69.5,26.0], [66.0,19.0], [61.5,12.0], [59.0,9.0]], "Skandinavisches Gebirge");
 
-    // Flüsse (Detaillierte Verläufe)
-    // Rhein
-    addFluss([[46.6,9.4], [47.5,7.6], [48.5,7.8], [49.0,8.4], [50.0,8.2], [50.4,7.5], [51.8,6.2], [51.9,4.2]], "Rhein");
-    // Donau
-    addFluss([[48.0,8.2], [48.4,10.0], [48.9,12.0], [48.2,16.4], [47.8,19.0], [45.8,18.8], [44.8,20.5], [44.5,22.5], [44.0,27.0], [45.2,29.6]], "Donau");
-    // Elbe
-    addFluss([[50.7,15.6], [51.0,14.0], [51.8,12.5], [52.2,12.0], [53.5,9.8], [53.9,8.6]], "Elbe");
-    // Wolga
-    addFluss([[57.2,32.5], [56.8,35.5], [57.0,40.0], [56.0,44.0], [56.2,49.5], [53.2,49.0], [51.5,46.0], [48.7,44.5], [46.0,48.0]], "Wolga");
-    // Loire
-    addFluss([[44.8,4.4], [45.8,4.0], [47.2,1.8], [47.5,0.5], [47.2,-2.2]], "Loire");
-    // Po
-    addFluss([[44.7,7.0], [45.0,9.5], [45.0,11.5], [44.9,12.4]], "Po");
-    // Themse
-    addFluss([[51.7,-2.0], [51.5,-0.1], [51.5,0.7]], "Themse");
+    // Städte Daten
+    const cities = [
+        {n: "Berlin", c: [52.52, 13.40]}, {n: "Paris", c: [48.85, 2.35]}, {n: "London", c: [51.50, -0.12]},
+        {n: "Rom", c: [41.90, 12.49]}, {n: "Madrid", c: [40.41, -3.70]}, {n: "Moskau", c: [55.75, 37.61]},
+        {n: "Athen", c: [37.98, 23.72]}, {n: "Wien", c: [48.20, 16.37]}, {n: "Warschau", c: [52.22, 21.01]}
+    ];
+    cities.forEach(c => addStadt(c.c, c.n));
 
-    // Städte
-    addStadt([52.5200, 13.4050], "Berlin");
-    addStadt([48.8566, 2.3522], "Paris");
-    addStadt([41.9028, 12.4964], "Rom");
-    addStadt([51.5074, -0.1278], "London");
-    addStadt([40.4168, -3.7038], "Madrid");
-    addStadt([55.7558, 37.6173], "Moskau");
-    addStadt([37.9838, 23.7275], "Athen");
+    // --- 6. INITIALISIERUNG ---
 
-    // --- 5. LOGIK (QUIZ & UI) ---
-
-    // Schichten hinzufügen
     lgGebirge.addTo(map);
     lgFluesse.addTo(map);
     lgStaedte.addTo(map);
@@ -265,170 +245,93 @@
 
     L.control.layers(
         { "⛰️ Topographie": openTopo, "🛰️ Satellit": esriSat }, 
-        { "🏔️ Gebirge": lgGebirge, "〰️ Flüsse": lgFluesse, "🏙️ Städte": lgStaedte }
+        { "🏔️ Gebirge": lgGebirge, "〰️ Flüsse (GIS)": lgFluesse, "🏙️ Städte": lgStaedte, "🏳️ Grenzen": lgLaender }
     ).addTo(map);
 
+    // Daten laden
+    loadData();
 
-    // CLICK HANDLER
-    function handleClick(e, layerOrGroup) {
+    // --- 7. INTERAKTION & QUIZ ---
+
+    function handleClick(e, layer) {
         if(quizActive) {
-            checkAnswer(layerOrGroup.quizData, layerOrGroup);
+            checkAnswer(layer.quizData, layer);
         } else {
-            // Normales Popup
-            let data = layerOrGroup.quizData;
-            let content = `<div class="cat-header">${data.type}</div><div class="item-name">${data.name}</div>`;
-            L.popup().setLatLng(e.latlng).setContent(content).openOn(map);
+            let data = layer.quizData;
+            L.popup().setLatLng(e.latlng)
+                .setContent(`<div class="cat-header">${data.type}</div><div class="item-name">${data.name}</div>`)
+                .openOn(map);
         }
     }
 
-    // QUIZ LOGIC
     function startQuiz() {
-        // Pool erstellen aus sichtbaren Layern
         quizPool = [];
+        // Nur sichtbare Layer ins Quiz aufnehmen
         searchIndex.forEach(item => {
             if(map.hasLayer(item.group)) quizPool.push(item);
         });
 
-        if(quizPool.length === 0) return alert("Bitte schalte Layer (z.B. Gebirge) ein!");
+        if(quizPool.length === 0) return alert("Bitte schalte Layer (z.B. Flüsse) ein!");
 
         quizActive = true;
         score = 0;
-        document.body.classList.add('quiz-mode');
         document.getElementById('quiz-start-view').style.display = 'none';
         document.getElementById('quiz-game-view').style.display = 'block';
-        
         map.closePopup();
         nextQuestion();
     }
 
     function stopQuiz() {
         quizActive = false;
-        document.body.classList.remove('quiz-mode');
         document.getElementById('quiz-start-view').style.display = 'block';
         document.getElementById('quiz-game-view').style.display = 'none';
-        
-        // Reset Styles
-        resetAllStyles();
+        resetStyles();
     }
 
     function nextQuestion() {
         if(quizPool.length === 0) {
             document.getElementById('quiz-question').innerText = "🎉 Quiz beendet!";
-            document.getElementById('quiz-feedback').innerText = `Endstand: ${score} Punkte`;
             return;
         }
         document.getElementById('quiz-feedback').innerText = "";
         
         let idx = Math.floor(Math.random() * quizPool.length);
         currentItem = quizPool[idx];
-        document.getElementById('quiz-question').innerText = `Wo liegt: ${currentItem.name}?`;
+        document.getElementById('quiz-question').innerText = `Wo ist: ${currentItem.name}?`;
     }
 
     function checkAnswer(data, layer) {
         let feedback = document.getElementById('quiz-feedback');
         
         if(data.name === currentItem.name) {
-            feedback.innerHTML = `<span class="correct">Richtig! ✓</span>`;
+            feedback.innerHTML = `<span style="color:green">Richtig! ✓</span>`;
             score++;
             document.getElementById('quiz-score').innerText = `Punkte: ${score}`;
             
-            // Grün hervorheben
-            highlightObject(layer, '#2ecc71');
+            // Highlight Richtig
+            if(layer.setStyle) layer.setStyle({color: '#2ecc71', fillColor: '#2ecc71'});
             
-            // Aus Pool entfernen
             quizPool = quizPool.filter(i => i.name !== currentItem.name);
             setTimeout(nextQuestion, 1000);
         } else {
-            feedback.innerHTML = `<span class="wrong">Falsch, das ist: ${data.name}</span>`;
-            // Rot blinken lassen
-            highlightObject(layer, '#e74c3c');
-            setTimeout(() => resetObjectStyle(layer, data.type), 1000);
-        }
-    }
-
-    function skipQuestion() {
-        nextQuestion();
-    }
-
-    // HELFER: Styling ändern für Feedback
-    function highlightObject(layer, color) {
-        // Fallunterscheidung je nach Typ
-        if(layer.setStyle) { 
-            // Polygon oder Linie
-            if(layer.quizData.type === "Fluss") {
-                // Bei Gruppe: Zugriff auf die sichtbaren Linien
-                let layers = layer.getLayers(); 
-                layers[0].setStyle({ color: color }); // Ufer
-                layers[1].setStyle({ color: color }); // Wasser
-            } else {
-                // Gebirge / Polygon
-                layer.setStyle({ color: color, fillColor: color, fillOpacity: 0.6 });
+            feedback.innerHTML = `<span style="color:red">Falsch, das ist: ${data.name}</span>`;
+            // Rot blinken
+            if(layer.setStyle) {
+                let oldColor = layer.options.color;
+                layer.setStyle({color: '#e74c3c'});
+                setTimeout(() => layer.setStyle({color: oldColor}), 1000);
             }
-        } 
-        if (layer.getElement) { 
-            // Marker
-            layer.setStyle({ color: color, fillColor: color });
         }
     }
 
-    function resetObjectStyle(layer, type) {
-        if(type === "Gebirge") layer.setStyle(styleGebirge);
-        if(type === "Fluss") {
-            let layers = layer.getLayers();
-            layers[0].setStyle(styleFlussBorder);
-            layers[1].setStyle(styleFlussWater);
-        }
-        if(type === "Stadt") layer.setStyle({ color: '#333', fillColor: '#fff' });
-    }
-
-    function resetAllStyles() {
-        lgGebirge.eachLayer(l => l.setStyle(styleGebirge));
+    function resetStyles() {
         lgFluesse.eachLayer(l => {
-            let els = l.getLayers();
-            els[0].setStyle(styleFlussBorder);
-            els[1].setStyle(styleFlussWater);
+            // Check ob es das "Wasser" Layer ist (hat das quizData property)
+            if(l.quizData) l.setStyle(styleRiverWater); 
         });
-        lgStaedte.eachLayer(l => l.setStyle({ color: '#333', fillColor: '#fff' }));
+        lgGebirge.eachLayer(l => l.setStyle(styleGebirge));
+        lgStaedte.eachLayer(l => l.setStyle({color:'#333', fillColor:'#fff'}));
     }
-
-
-    // --- 6. SUCHE ---
-    const sInput = document.getElementById('search-input');
-    const sRes = document.getElementById('search-results');
-
-    sInput.addEventListener('input', function() {
-        let val = this.value.toLowerCase();
-        sRes.innerHTML = '';
-        if(val.length < 2) { sRes.style.display = 'none'; return; }
-        
-        let matches = searchIndex.filter(i => i.name.toLowerCase().includes(val));
-        if(matches.length > 0) {
-            sRes.style.display = 'block';
-            matches.slice(0,8).forEach(m => {
-                let d = document.createElement('div');
-                d.className = 'search-item';
-                d.innerHTML = `<b>${m.name}</b> <span style="font-size:0.8em; color:#999">${m.type}</span>`;
-                d.onclick = () => {
-                    // Layer aktivieren falls aus
-                    if(!map.hasLayer(m.group)) map.addLayer(m.group);
-                    
-                    if(m.layer.getBounds) map.fitBounds(m.layer.getBounds(), {padding:[50,50], maxZoom: 7});
-                    else map.setView(m.layer.getLatLng(), 7);
-                    
-                    // Popup öffnen (verzögert)
-                    setTimeout(() => {
-                        let content = `<div class="cat-header">${m.type}</div><div class="item-name">${m.name}</div>`;
-                        L.popup().setLatLng(m.layer.getBounds ? m.layer.getBounds().getCenter() : m.layer.getLatLng())
-                        .setContent(content).openOn(map);
-                    }, 300);
-
-                    sRes.style.display = 'none';
-                    sInput.value = m.name;
-                };
-                sRes.appendChild(d);
-            });
-        }
-    });
 
 </script>
 </body>
