@@ -2,253 +2,434 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <title>Geo-Master Europa</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Europa Topographie - Pro Quiz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { height: 100%; margin: 0; font-family: 'Segoe UI', sans-serif; overflow: hidden; background: #aad3df; }
-        #map { height: 100vh; width: 100%; z-index: 1; }
-
-        /* --- UI ELEMENTE --- */
-        .hidden { display: none !important; }
-
-        /* Menü-Button (Zahnrad) */
-        #menu-toggle {
-            position: absolute; top: 15px; left: 15px; z-index: 3000;
-            background: white; border: none; border-radius: 50%; width: 45px; height: 45px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2); cursor: pointer; font-size: 20px;
+        body, html { height: 100%; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        
+        /* KARTE */
+        #map { height: 100vh; width: 100%; background: #eef2f3; z-index: 1; }
+        
+        /* UI ELEMENTE */
+        .leaflet-control-layers { 
+            border-radius: 8px !important; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1) !important;
+            padding: 10px !important;
         }
 
-        /* Haupt-Overlay (Einstellungen) */
-        #settings-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(5px);
-            z-index: 4000; display: flex; align-items: center; justify-content: center;
+        /* POPUP DESIGN (Google Style) */
+        .leaflet-popup-content-wrapper { border-radius: 8px; box-shadow: 0 3px 14px rgba(0,0,0,0.4); }
+        .cat-header { font-size: 0.7em; font-weight: 700; text-transform: uppercase; color: #888; margin-bottom: 2px; }
+        .item-name { font-size: 1.1em; font-weight: 600; color: #333; }
+
+        /* SUCHE */
+        #search-container {
+            position: absolute; top: 20px; left: 60px; z-index: 1000; width: 320px;
+            transition: opacity 0.3s;
         }
-
-        .card {
-            background: white; padding: 25px; border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 90%; max-width: 380px; text-align: center;
+        #search-input {
+            width: 100%; padding: 12px 20px; border: none; border-radius: 8px;
+            font-size: 15px; outline: none; box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
-
-        .mode-btn {
-            width: 100%; padding: 12px; margin: 8px 0; border: none; border-radius: 10px;
-            font-size: 1rem; font-weight: 600; cursor: pointer; transition: 0.2s;
+        #search-results {
+            background: white; border-radius: 8px; margin-top: 5px; max-height: 300px;
+            overflow-y: auto; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         }
-        .btn-exam { background: #3498db; color: white; }
-        .btn-classic { background: #f39c12; color: white; }
-        .btn-close { background: #ecf0f1; color: #333; margin-top: 15px; }
+        .search-item { padding: 10px 20px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+        .search-item:hover { background-color: #f7f7f7; }
 
-        /* Layer-Auswahl */
-        .layer-settings { text-align: left; margin: 15px 0; padding: 10px; background: #f9f9f9; border-radius: 10px; }
-        .layer-settings label { display: block; margin: 5px 0; cursor: pointer; }
-
-        /* Quiz-Panel (unten) */
-        .quiz-panel {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 90%; max-width: 400px; background: white; border-radius: 15px;
-            padding: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.3); z-index: 2000;
+        /* QUIZ PANEL */
+        #quiz-panel {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            z-index: 2000; background: white; padding: 20px 30px; border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.25); text-align: center; min-width: 320px;
         }
-
-        /* Multiple Choice Buttons */
-        .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
-        .opt-btn { 
-            background: #f8f9fa; border: 2px solid #ddd; padding: 10px; border-radius: 8px;
-            cursor: pointer; font-weight: 600; font-size: 0.9rem;
+        .quiz-btn {
+            background: #1a73e8; color: white; border: none; padding: 10px 24px;
+            border-radius: 24px; cursor: pointer; font-size: 15px; font-weight: 600;
+            transition: background 0.2s; margin: 0 5px;
         }
-        .opt-btn.correct { background: #2ecc71 !important; color: white; border-color: #27ae60; }
-        .opt-btn.wrong { background: #e74c3c !important; color: white; border-color: #c0392b; }
+        .quiz-btn:hover { background: #1557b0; }
+        .quiz-btn.secondary { background: #dadce0; color: #3c4043; }
+        .quiz-btn.secondary:hover { background: #bdc1c6; }
+        .quiz-btn.stop { background: #ea4335; color: white; }
+        .quiz-btn.stop:hover { background: #d93025; }
 
-        .progress-bar { height: 6px; background: #eee; border-radius: 3px; margin-bottom: 10px; overflow: hidden; }
-        .progress-fill { height: 100%; background: #3498db; width: 0%; transition: width 0.3s; }
+        #quiz-question { font-size: 1.2em; font-weight: bold; color: #202124; margin: 8px 0; }
+        #quiz-feedback { height: 24px; font-weight: 600; font-size: 0.95em; margin-bottom: 5px; }
+        .correct { color: #1e8e3e; }
+        .wrong { color: #d93025; }
 
-        /* Beenden Button */
-        .exit-btn {
-            position: absolute; top: 15px; right: 15px; z-index: 3000;
-            background: #e74c3c; color: white; border: none; padding: 8px 15px;
-            border-radius: 20px; font-weight: bold; cursor: pointer;
-        }
+        /* Verstecke Suche im Quiz Modus */
+        body.quiz-mode #search-container { opacity: 0; pointer-events: none; }
     </style>
 </head>
 <body>
 
-<button id="menu-toggle" onclick="toggleSettings()">⚙️</button>
-<button id="exit-quiz" class="exit-btn hidden" onclick="stopQuiz()">Quiz Beenden</button>
+<div id="search-container">
+    <input type="text" id="search-input" placeholder="🔍 Suche (z.B. Rhein, Alpen)...">
+    <div id="search-results"></div>
+</div>
 
-<div id="settings-overlay">
-    <div class="card">
-        <h2>Europa Geo-Master</h2>
-        <p style="color: #666;">Wähle einen Modus:</p>
-        
-        <button class="mode-btn btn-exam" onclick="startQuiz('exam')">🎓 Fahrschul-Modus (A, B, C)</button>
-        <button class="mode-btn btn-classic" onclick="startQuiz('classic')">📍 Klassisch (Auf Karte zeigen)</button>
-        
-        <div class="layer-settings">
-            <small><b>EBENEN:</b></small>
-            <label><input type="checkbox" checked onchange="toggleL('gebirge', this)"> Gebirge</label>
-            <label><input type="checkbox" checked onchange="toggleL('fluesse', this)"> Flüsse</label>
-            <label><input type="checkbox" checked onchange="toggleL('staedte', this)"> Städte</label>
-        </div>
-
-        <button class="mode-btn btn-close" onclick="toggleSettings()">Nur Karte erkunden</button>
+<div id="quiz-panel">
+    <div id="quiz-start-view">
+        <h3 style="margin:0 0 10px 0; color:#444;">Geographie Trainer</h3>
+        <p style="font-size:0.9em; color:#666; margin-bottom:15px;">Erkennst du die markierten Gebiete?</p>
+        <button class="quiz-btn" onclick="startQuiz()">Quiz Starten</button>
     </div>
-</div>
-
-<div id="exam-panel" class="quiz-panel hidden">
-    <div class="progress-bar"><div id="exam-fill" class="progress-fill"></div></div>
-    <div id="exam-question" style="font-weight: bold; text-align: center; margin-bottom: 10px;">Was ist das?</div>
-    <div id="exam-options" class="options-grid"></div>
-</div>
-
-<div id="classic-panel" class="quiz-panel hidden" style="text-align: center;">
-    <div id="classic-target" style="font-size: 1.2rem; font-weight: bold;">Suche: ...</div>
-    <div id="classic-feedback" style="margin-top: 5px; height: 20px;"></div>
+    
+    <div id="quiz-game-view" style="display:none;">
+        <div id="quiz-score" style="color:#777; font-size:0.85em;">Punkte: 0</div>
+        <div id="quiz-question">Bereit?</div>
+        <div id="quiz-feedback"></div>
+        <div style="margin-top:10px;">
+            <button class="quiz-btn secondary" onclick="skipQuestion()">Überspringen</button>
+            <button class="quiz-btn stop" onclick="stopQuiz()">Beenden</button>
+        </div>
+    </div>
 </div>
 
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <script>
-    // 1. Karte Initialisieren (Mit Standard OSM für bessere Stabilität)
-    const map = L.map('map', { zoomControl: false }).setView([50, 15], 4);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap'
+    // --- 1. SETUP ---
+    // Wir nutzen OpenTopoMap für das physische Relief (sieht am besten aus für Gebirge)
+    var map = L.map('map', { zoomControl: false }).setView([49.5, 12.0], 5);
+    L.control.zoom({ position: 'topright' }).addTo(map);
+
+    var openTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        maxZoom: 17,
+        attribution: '© OpenTopoMap'
     }).addTo(map);
 
-    // 2. Layer Gruppen
-    const groups = {
-        gebirge: L.layerGroup().addTo(map),
-        fluesse: L.layerGroup().addTo(map),
-        staedte: L.layerGroup().addTo(map)
+    var esriSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles © Esri'
+    });
+
+    // Layer Gruppen
+    var lgGebirge = L.layerGroup();
+    var lgFluesse = L.layerGroup();
+    var lgStaedte = L.layerGroup();
+    var lgLaender = L.layerGroup();
+
+    // --- 2. STYLING (GOOGLE MAPS LOOK) ---
+    
+    // Gebirge: Dunkle Kontur (Outline), Transparente Füllung
+    const styleGebirge = {
+        color: '#5d4037',      // Dunkelbraune Kontur
+        weight: 2,             // Scharfe Linie
+        fillColor: '#8d6e63',  // Helleres Braun innen
+        fillOpacity: 0.35,     // Transparent damit Karte durchscheint
+        lineJoin: 'round'
     };
 
-    let allItems = [];
+    const styleGebirgeHover = {
+        weight: 4,
+        fillOpacity: 0.6,
+        color: '#3e2723'
+    };
 
-    // 3. Daten hinzufügen (Beispielhaft - hier kommen deine Original-Daten rein)
-    function addP(group, name, type, coords, isPoint=false) {
-        let layer;
-        if(isPoint) {
-            layer = L.circleMarker(coords, { radius: 6, color: 'black', fillColor: 'white', fillOpacity: 1 });
-        } else {
-            layer = L.polygon(coords, { color: type==='Gebirge'?'#8B4513':'#2980b9', weight: 2 });
-        }
-        layer.on('click', (e) => onMapClick(e, name, layer));
-        layer.addTo(groups[group]);
-        allItems.push({ name, type, layer, group: groups[group] });
-    }
+    // Flüsse: "Double Stroke" Technik (Ufer + Wasser)
+    // Untere Linie (Ufer)
+    const styleFlussBorder = { color: '#406185', weight: 6, opacity: 0.8, lineCap: 'round' };
+    // Obere Linie (Wasser)
+    const styleFlussWater = { color: '#7FA8D7', weight: 3, opacity: 1, lineCap: 'round' };
+    
+    const styleFlussHoverBorder = { color: '#2c3e50', weight: 8, opacity: 1 };
+    const styleFlussHoverWater = { color: '#a9cce3', weight: 4, opacity: 1 };
 
-    // --- HIER DEINE DATEN (Platzhalter) ---
-    addP('gebirge', 'Alpen', 'Gebirge', [[47,10], [48,12], [47,14], [46,12]]);
-    addP('gebirge', 'Pyrenäen', 'Gebirge', [[42,0], [43,1], [42,2]]);
-    addP('staedte', 'Berlin', 'Stadt', [52.5, 13.4], true);
-    addP('staedte', 'Paris', 'Stadt', [48.8, 2.3], true);
-    // ---------------------------------------
+    // --- 3. DATEN LADEN & RENDERN ---
 
-    // 4. Quiz Logik
-    let currentMode = 'explore';
-    let currentTarget = null;
-    let examStep = 0;
+    let searchIndex = [];
+    let quizActive = false;
+    let quizPool = [];
+    let currentItem = null;
     let score = 0;
 
-    function startQuiz(mode) {
-        currentMode = mode;
-        toggleSettings(false);
-        document.getElementById('exit-quiz').classList.remove('hidden');
+    // A. Ländergrenzen (für Orientierung)
+    fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
+        .then(res => res.json())
+        .then(data => {
+            L.geoJson(data, {
+                style: { color: "#888", weight: 1, fillOpacity: 0, dashArray: '4, 4' },
+                interactive: false 
+            }).addTo(lgLaender);
+        });
+
+    // B. Funktion für GEBIRGE (Area)
+    function addGebirge(coords, name) {
+        let p = L.polygon(coords, styleGebirge);
         
-        if(mode === 'exam') {
-            examStep = 0; score = 0;
-            document.getElementById('exam-panel').classList.remove('hidden');
-            nextExamQ();
+        // Metadaten
+        p.quizData = { name: name, type: "Gebirge" };
+        
+        // Events
+        p.on('mouseover', () => { if(!quizActive) p.setStyle(styleGebirgeHover); });
+        p.on('mouseout', () => { if(!quizActive) p.setStyle(styleGebirge); });
+        p.on('click', (e) => handleClick(e, p));
+
+        p.addTo(lgGebirge);
+        searchIndex.push({ name: name, layer: p, type: "Gebirge", group: lgGebirge });
+    }
+
+    // C. Funktion für FLÜSSE (Multi-Line Rendering)
+    function addFluss(coords, name) {
+        // 1. Ufer (Breite Linie unten)
+        let border = L.polyline(coords, styleFlussBorder);
+        // 2. Wasser (Schmalere Linie oben)
+        let water = L.polyline(coords, styleFlussWater);
+        // 3. Unsichtbare Klickzone (sehr breit, für einfache Auswahl am Handy)
+        let clickZone = L.polyline(coords, { weight: 20, opacity: 0 });
+
+        // Gruppe erstellen
+        let group = L.featureGroup([border, water, clickZone]);
+        group.quizData = { name: name, type: "Fluss" };
+
+        // Hover Effekte auf die Gruppe anwenden
+        group.on('mouseover', () => {
+            if(!quizActive) {
+                border.setStyle(styleFlussHoverBorder);
+                water.setStyle(styleFlussHoverWater);
+            }
+        });
+        group.on('mouseout', () => {
+            if(!quizActive) {
+                border.setStyle(styleFlussBorder);
+                water.setStyle(styleFlussWater);
+            }
+        });
+        group.on('click', (e) => handleClick(e, group));
+
+        group.addTo(lgFluesse);
+        // Für Zoom-Logik speichern wir das Wasser-Layer als Referenz
+        searchIndex.push({ name: name, layer: water, type: "Fluss", group: lgFluesse, parent: group });
+    }
+
+    // D. Funktion für STÄDTE
+    function addStadt(coord, name) {
+        let m = L.circleMarker(coord, { 
+            radius: 6, color: '#333', weight: 2, 
+            fillColor: '#fff', fillOpacity: 1 
+        });
+        m.quizData = { name: name, type: "Stadt" };
+        m.on('click', (e) => handleClick(e, m));
+        m.addTo(lgStaedte);
+        searchIndex.push({ name: name, layer: m, type: "Stadt", group: lgStaedte });
+    }
+
+    // --- 4. OBJEKTE ERSTELLEN ---
+
+    // Gebirge (Scharfe Koordinaten)
+    addGebirge([[43.8,7.2], [45.0,6.5], [46.5,8.0], [47.5,9.5], [47.6,12.5], [47.5,14.5], [48.2,16.2], [47.0,15.0], [46.0,11.0], [44.2,7.5]], "Alpen");
+    addGebirge([[43.3,-1.8], [42.8,0.0], [42.6,2.0], [42.4,3.2], [42.8,3.2], [43.1,1.5], [43.5,-1.5]], "Pyrenäen");
+    addGebirge([[48.2,17.0], [49.5,19.5], [49.8,22.0], [48.5,24.5], [47.0,26.5], [45.5,26.8], [44.8,24.5], [45.5,22.0], [47.0,22.5], [48.0,20.0]], "Karpaten");
+    addGebirge([[44.5,8.5], [44.0,11.0], [42.5,13.5], [40.5,16.0], [38.0,16.0], [39.5,15.0], [41.5,12.5], [43.5,9.5]], "Apenninen");
+    addGebirge([[68.0,66.0], [66.0,65.0], [62.0,59.0], [59.0,59.0], [55.0,59.0], [51.0,58.0], [51.0,61.0], [55.0,61.5], [62.0,61.0], [67.0,67.5]], "Ural");
+    addGebirge([[58.5,6.0], [61.0,7.5], [63.0,11.0], [68.0,18.0], [70.5,23.0], [69.5,26.0], [66.0,19.0], [61.5,12.0], [59.0,9.0]], "Skandinavisches Gebirge");
+
+    // Flüsse (Detaillierte Verläufe)
+    // Rhein
+    addFluss([[46.6,9.4], [47.5,7.6], [48.5,7.8], [49.0,8.4], [50.0,8.2], [50.4,7.5], [51.8,6.2], [51.9,4.2]], "Rhein");
+    // Donau
+    addFluss([[48.0,8.2], [48.4,10.0], [48.9,12.0], [48.2,16.4], [47.8,19.0], [45.8,18.8], [44.8,20.5], [44.5,22.5], [44.0,27.0], [45.2,29.6]], "Donau");
+    // Elbe
+    addFluss([[50.7,15.6], [51.0,14.0], [51.8,12.5], [52.2,12.0], [53.5,9.8], [53.9,8.6]], "Elbe");
+    // Wolga
+    addFluss([[57.2,32.5], [56.8,35.5], [57.0,40.0], [56.0,44.0], [56.2,49.5], [53.2,49.0], [51.5,46.0], [48.7,44.5], [46.0,48.0]], "Wolga");
+    // Loire
+    addFluss([[44.8,4.4], [45.8,4.0], [47.2,1.8], [47.5,0.5], [47.2,-2.2]], "Loire");
+    // Po
+    addFluss([[44.7,7.0], [45.0,9.5], [45.0,11.5], [44.9,12.4]], "Po");
+    // Themse
+    addFluss([[51.7,-2.0], [51.5,-0.1], [51.5,0.7]], "Themse");
+
+    // Städte
+    addStadt([52.5200, 13.4050], "Berlin");
+    addStadt([48.8566, 2.3522], "Paris");
+    addStadt([41.9028, 12.4964], "Rom");
+    addStadt([51.5074, -0.1278], "London");
+    addStadt([40.4168, -3.7038], "Madrid");
+    addStadt([55.7558, 37.6173], "Moskau");
+    addStadt([37.9838, 23.7275], "Athen");
+
+    // --- 5. LOGIK (QUIZ & UI) ---
+
+    // Schichten hinzufügen
+    lgGebirge.addTo(map);
+    lgFluesse.addTo(map);
+    lgStaedte.addTo(map);
+    lgLaender.addTo(map);
+
+    L.control.layers(
+        { "⛰️ Topographie": openTopo, "🛰️ Satellit": esriSat }, 
+        { "🏔️ Gebirge": lgGebirge, "〰️ Flüsse": lgFluesse, "🏙️ Städte": lgStaedte }
+    ).addTo(map);
+
+
+    // CLICK HANDLER
+    function handleClick(e, layerOrGroup) {
+        if(quizActive) {
+            checkAnswer(layerOrGroup.quizData, layerOrGroup);
         } else {
-            document.getElementById('classic-panel').classList.remove('hidden');
-            nextClassicQ();
+            // Normales Popup
+            let data = layerOrGroup.quizData;
+            let content = `<div class="cat-header">${data.type}</div><div class="item-name">${data.name}</div>`;
+            L.popup().setLatLng(e.latlng).setContent(content).openOn(map);
         }
+    }
+
+    // QUIZ LOGIC
+    function startQuiz() {
+        // Pool erstellen aus sichtbaren Layern
+        quizPool = [];
+        searchIndex.forEach(item => {
+            if(map.hasLayer(item.group)) quizPool.push(item);
+        });
+
+        if(quizPool.length === 0) return alert("Bitte schalte Layer (z.B. Gebirge) ein!");
+
+        quizActive = true;
+        score = 0;
+        document.body.classList.add('quiz-mode');
+        document.getElementById('quiz-start-view').style.display = 'none';
+        document.getElementById('quiz-game-view').style.display = 'block';
+        
+        map.closePopup();
+        nextQuestion();
     }
 
     function stopQuiz() {
-        currentMode = 'explore';
-        document.getElementById('exit-quiz').classList.add('hidden');
-        document.getElementById('exam-panel').classList.add('hidden');
-        document.getElementById('classic-panel').classList.add('hidden');
-        resetStyles();
-        map.setView([50, 15], 4);
-    }
-
-    // FAHRSCHUL-LOGIK
-    function nextExamQ() {
-        const visible = allItems.filter(i => map.hasLayer(i.group));
-        currentTarget = visible[Math.floor(Math.random() * visible.length)];
+        quizActive = false;
+        document.body.classList.remove('quiz-mode');
+        document.getElementById('quiz-start-view').style.display = 'block';
+        document.getElementById('quiz-game-view').style.display = 'none';
         
-        // Markierung auf Karte
-        resetStyles();
-        currentTarget.layer.setStyle({ color: '#ff00ff', weight: 5 });
-        if(currentTarget.layer.getBounds) map.fitBounds(currentTarget.layer.getBounds(), {padding:[100,100]});
-        else map.setView(currentTarget.layer.getLatLng(), 6);
+        // Reset Styles
+        resetAllStyles();
+    }
 
-        // Buttons
-        const options = [currentTarget.name];
-        while(options.length < 4) {
-            let r = visible[Math.floor(Math.random() * visible.length)].name;
-            if(!options.includes(r)) options.push(r);
+    function nextQuestion() {
+        if(quizPool.length === 0) {
+            document.getElementById('quiz-question').innerText = "🎉 Quiz beendet!";
+            document.getElementById('quiz-feedback').innerText = `Endstand: ${score} Punkte`;
+            return;
         }
-        options.sort(() => Math.random() - 0.5);
-
-        const container = document.getElementById('exam-options');
-        container.innerHTML = '';
-        options.forEach(opt => {
-            const b = document.createElement('button');
-            b.className = 'opt-btn';
-            b.innerText = opt;
-            b.onclick = () => {
-                if(opt === currentTarget.name) {
-                    b.classList.add('correct');
-                    setTimeout(nextExamQ, 1000);
-                } else {
-                    b.classList.add('wrong');
-                }
-            };
-            container.appendChild(b);
-        });
+        document.getElementById('quiz-feedback').innerText = "";
+        
+        let idx = Math.floor(Math.random() * quizPool.length);
+        currentItem = quizPool[idx];
+        document.getElementById('quiz-question').innerText = `Wo liegt: ${currentItem.name}?`;
     }
 
-    // KLASSIK-LOGIK
-    function nextClassicQ() {
-        const visible = allItems.filter(i => map.hasLayer(i.group));
-        currentTarget = visible[Math.floor(Math.random() * visible.length)];
-        document.getElementById('classic-target').innerText = `Suche: ${currentTarget.name}`;
-        document.getElementById('classic-feedback').innerText = "";
+    function checkAnswer(data, layer) {
+        let feedback = document.getElementById('quiz-feedback');
+        
+        if(data.name === currentItem.name) {
+            feedback.innerHTML = `<span class="correct">Richtig! ✓</span>`;
+            score++;
+            document.getElementById('quiz-score').innerText = `Punkte: ${score}`;
+            
+            // Grün hervorheben
+            highlightObject(layer, '#2ecc71');
+            
+            // Aus Pool entfernen
+            quizPool = quizPool.filter(i => i.name !== currentItem.name);
+            setTimeout(nextQuestion, 1000);
+        } else {
+            feedback.innerHTML = `<span class="wrong">Falsch, das ist: ${data.name}</span>`;
+            // Rot blinken lassen
+            highlightObject(layer, '#e74c3c');
+            setTimeout(() => resetObjectStyle(layer, data.type), 1000);
+        }
     }
 
-    function onMapClick(e, name, layer) {
-        if(currentMode === 'explore') {
-            L.popup().setLatLng(e.latlng).setContent(`<b>${name}</b>`).openOn(map);
-        } else if(currentMode === 'classic') {
-            if(name === currentTarget.name) {
-                layer.setStyle({ color: '#2ecc71', weight: 5 });
-                document.getElementById('classic-feedback').innerHTML = "<b style='color:green'>Richtig!</b>";
-                setTimeout(nextClassicQ, 1000);
+    function skipQuestion() {
+        nextQuestion();
+    }
+
+    // HELFER: Styling ändern für Feedback
+    function highlightObject(layer, color) {
+        // Fallunterscheidung je nach Typ
+        if(layer.setStyle) { 
+            // Polygon oder Linie
+            if(layer.quizData.type === "Fluss") {
+                // Bei Gruppe: Zugriff auf die sichtbaren Linien
+                let layers = layer.getLayers(); 
+                layers[0].setStyle({ color: color }); // Ufer
+                layers[1].setStyle({ color: color }); // Wasser
             } else {
-                document.getElementById('classic-feedback').innerHTML = `<span style='color:red'>Das war ${name}</span>`;
+                // Gebirge / Polygon
+                layer.setStyle({ color: color, fillColor: color, fillOpacity: 0.6 });
             }
+        } 
+        if (layer.getElement) { 
+            // Marker
+            layer.setStyle({ color: color, fillColor: color });
         }
     }
 
-    // Hilfsfunktionen
-    function toggleSettings(show) {
-        const el = document.getElementById('settings-overlay');
-        el.style.display = (show === false || el.style.display === 'flex') ? 'none' : 'flex';
+    function resetObjectStyle(layer, type) {
+        if(type === "Gebirge") layer.setStyle(styleGebirge);
+        if(type === "Fluss") {
+            let layers = layer.getLayers();
+            layers[0].setStyle(styleFlussBorder);
+            layers[1].setStyle(styleFlussWater);
+        }
+        if(type === "Stadt") layer.setStyle({ color: '#333', fillColor: '#fff' });
     }
 
-    function toggleL(id, cb) {
-        if(cb.checked) map.addLayer(groups[id]);
-        else map.removeLayer(groups[id]);
-    }
-
-    function resetStyles() {
-        allItems.forEach(i => {
-            if(i.layer.setStyle) i.layer.setStyle({ color: i.type==='Gebirge'?'#8B4513':'#2980b9', weight: 2 });
+    function resetAllStyles() {
+        lgGebirge.eachLayer(l => l.setStyle(styleGebirge));
+        lgFluesse.eachLayer(l => {
+            let els = l.getLayers();
+            els[0].setStyle(styleFlussBorder);
+            els[1].setStyle(styleFlussWater);
         });
+        lgStaedte.eachLayer(l => l.setStyle({ color: '#333', fillColor: '#fff' }));
     }
+
+
+    // --- 6. SUCHE ---
+    const sInput = document.getElementById('search-input');
+    const sRes = document.getElementById('search-results');
+
+    sInput.addEventListener('input', function() {
+        let val = this.value.toLowerCase();
+        sRes.innerHTML = '';
+        if(val.length < 2) { sRes.style.display = 'none'; return; }
+        
+        let matches = searchIndex.filter(i => i.name.toLowerCase().includes(val));
+        if(matches.length > 0) {
+            sRes.style.display = 'block';
+            matches.slice(0,8).forEach(m => {
+                let d = document.createElement('div');
+                d.className = 'search-item';
+                d.innerHTML = `<b>${m.name}</b> <span style="font-size:0.8em; color:#999">${m.type}</span>`;
+                d.onclick = () => {
+                    // Layer aktivieren falls aus
+                    if(!map.hasLayer(m.group)) map.addLayer(m.group);
+                    
+                    if(m.layer.getBounds) map.fitBounds(m.layer.getBounds(), {padding:[50,50], maxZoom: 7});
+                    else map.setView(m.layer.getLatLng(), 7);
+                    
+                    // Popup öffnen (verzögert)
+                    setTimeout(() => {
+                        let content = `<div class="cat-header">${m.type}</div><div class="item-name">${m.name}</div>`;
+                        L.popup().setLatLng(m.layer.getBounds ? m.layer.getBounds().getCenter() : m.layer.getLatLng())
+                        .setContent(content).openOn(map);
+                    }, 300);
+
+                    sRes.style.display = 'none';
+                    sInput.value = m.name;
+                };
+                sRes.appendChild(d);
+            });
+        }
+    });
+
 </script>
 </body>
 </html>
