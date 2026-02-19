@@ -17,17 +17,35 @@
             box-shadow: 0 0 15px rgba(0,0,0,0.3) !important;
             border-radius: 8px !important;
             padding: 10px !important;
+            transition: opacity 0.3s;
         }
 
         /* Popup Styling */
         .cat-header { font-size: 0.75em; font-weight: bold; text-transform: uppercase; color: #555; border-bottom: 1px solid #ccc; margin-bottom: 5px; padding-bottom: 2px; }
         .item-name { font-size: 1.2em; font-weight: bold; color: #2c3e50; }
 
+        /* --- UI TOGGLE BUTTON --- */
+        #ui-toggle-btn {
+            position: absolute;
+            top: 20px;
+            left: 15px;
+            z-index: 2000;
+            background: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 18px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            transition: all 0.2s;
+        }
+        #ui-toggle-btn:hover { background: #f0f0f0; transform: scale(1.05); }
+
         /* --- SUCHFUNKTION STYLING --- */
         #search-container {
             position: absolute;
             top: 20px;
-            left: 60px; 
+            left: 70px; 
             z-index: 1000;
             width: 320px;
             transition: opacity 0.3s;
@@ -86,6 +104,7 @@
             gap: 10px;
             min-width: 320px;
             text-align: center;
+            transition: opacity 0.3s;
         }
 
         .quiz-btn {
@@ -114,9 +133,19 @@
         /* Verstecke UI Elemente im Quiz Modus wenn nötig */
         body.quiz-mode #search-container { opacity: 0; pointer-events: none; }
         
+        /* Modus: Alles UI Ausgeblendet */
+        body.ui-hidden #search-container,
+        body.ui-hidden #quiz-panel,
+        body.ui-hidden .leaflet-control-layers {
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        
     </style>
 </head>
 <body>
+
+<button id="ui-toggle-btn" onclick="toggleUI()" title="UI Ein-/Ausblenden">👁️</button>
 
 <div id="search-container">
     <input type="text" id="search-input" placeholder="🔍 Suche nach Berg, Stadt, Fluss... (Enter)">
@@ -152,7 +181,6 @@
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // --- 2. PANES (EBENEN) FÜR KLICK-HIERARCHIE ---
-    // Flächen nach unten, Linien und Punkte nach oben!
     map.createPane('tieflandPane'); map.getPane('tieflandPane').style.zIndex = 400;
     map.createPane('gebirgePane');  map.getPane('gebirgePane').style.zIndex = 410;
     map.createPane('inselnPane');   map.getPane('inselnPane').style.zIndex = 420;
@@ -178,6 +206,9 @@
     var lgSeen = L.layerGroup();
     var lgInseln = L.layerGroup();
     var lgStaedte = L.layerGroup();
+    
+    // Dummy-Layer für die Hilfestellungen (Zoom & Blink)
+    var lgHints = L.layerGroup().addTo(map); // Standardmäßig aktiviert
 
     // --- 5. LÄNDERGRENZEN ---
     fetch('https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson')
@@ -204,7 +235,12 @@
     let currentQuizItem = null;
     let score = 0;
     let rounds = 0;
-    let failedAttempts = 0; // Zähler für die 3 Fehlversuche
+    let failedAttempts = 0; // Zähler für die Fehlversuche
+
+    // UI TOGGLE FUNKTION
+    function toggleUI() {
+        document.body.classList.toggle('ui-hidden');
+    }
 
     function addPoly(group, coords, name, style, type) {
         let p = L.polygon(coords, style);
@@ -216,7 +252,6 @@
 
     function addLine(group, coords, name, type) {
         let l = L.polyline(coords, sFluss);
-        // Unsichtbare Klick-Linie bekommt ebenfalls das Fluss-Pane
         let touchLine = L.polyline(coords, { weight: 15, opacity: 0, pane: 'fluessePane' }); 
         
         let featureGroup = L.featureGroup([l, touchLine]);
@@ -244,7 +279,7 @@
         }
     }
 
-    // --- 7. DATEN ---
+    // --- 7. DATEN (KOMPLETT) ---
     const dGebirge = [
         {n: "Skandinavisches Gebirge", c: [[58.5,6.0], [61.0,7.5], [63.0,11.0], [68.0,18.0], [70.5,23.0], [69.5,26.0], [66.0,19.0], [61.5,12.0], [59.0,9.0]]},
         {n: "Ural", c: [[68.0,66.0], [66.0,65.0], [62.0,59.0], [59.0,59.0], [55.0,59.0], [51.0,58.0], [51.0,61.0], [55.0,61.5], [62.0,61.0], [67.0,67.5]]},
@@ -450,6 +485,7 @@
     // --- 9. STEUERUNG ---
     var baseMaps = { "⛰️ Physisches Relief": openTopo, "🛰️ Satellit": esriSattelite };
     var overlays = {
+        "💡 Hilfestellungen (Zoom & Blink)": lgHints,
         "🏳️ Ländergrenzen": lgLaender,
         "🏙️ Städte": lgStaedte,
         "🏔️ Gebirge": lgGebirge,
@@ -509,7 +545,7 @@
         }
 
         resetStyles();
-        failedAttempts = 0; // Fehlversuche für die neue Frage zurücksetzen
+        failedAttempts = 0; // Fehlversuche für neue Frage zurücksetzen
         document.getElementById('quiz-feedback').innerText = "";
         
         let idx = Math.floor(Math.random() * quizPool.length);
@@ -524,6 +560,7 @@
         if (!currentQuizItem) return;
 
         let feedback = document.getElementById('quiz-feedback');
+        let hintsEnabled = map.hasLayer(lgHints); // Check ob Tipps an sind
 
         if (clickedData.name === currentQuizItem.name) {
             score++;
@@ -538,21 +575,31 @@
             rounds++;
             failedAttempts++;
             
-            if (failedAttempts >= 3) {
-                // Bei 3 Fehlversuchen einen Hinweis geben und hinzoomen
-                feedback.innerHTML = `<span class="hint">Tipp: Schau mal hier in der Region! 🔎</span>`;
-                
+            if (hintsEnabled && failedAttempts >= 3) {
                 let targetLayer = currentQuizItem.layer;
-                if (targetLayer.getBounds) {
-                    map.fitBounds(targetLayer.getBounds(), { padding: [50, 50], maxZoom: 6, animate: true });
-                } else {
-                    map.setView(targetLayer.getLatLng(), 6, { animate: true });
-                }
                 
-                // Die Lösung flackert kurz auf (kurz markieren, dann nach 2 Sek. wieder verstecken)
-                highlightLayer(targetLayer, false);
-                setTimeout(() => { resetStyles(); }, 2000);
+                if (failedAttempts < 5) {
+                    // Stufe 1: Nur zoomen
+                    feedback.innerHTML = `<span class="hint">Tipp: Schau mal hier in der Region! 🔎</span>`;
+                    if (targetLayer.getBounds) {
+                        map.fitBounds(targetLayer.getBounds(), { padding: [50, 50], maxZoom: 6, animate: true });
+                    } else {
+                        map.setView(targetLayer.getLatLng(), 6, { animate: true });
+                    }
+                } else {
+                    // Stufe 2: Zoomen & kurz aufblinken lassen (ab 5 Versuchen)
+                    feedback.innerHTML = `<span class="hint">Tipp: Das gesuchte Objekt blinkt jetzt gelb auf! 💡</span>`;
+                    if (targetLayer.getBounds) {
+                        map.fitBounds(targetLayer.getBounds(), { padding: [50, 50], maxZoom: 6, animate: true });
+                    } else {
+                        map.setView(targetLayer.getLatLng(), 6, { animate: true });
+                    }
+                    
+                    highlightLayer(targetLayer, false);
+                    setTimeout(() => { resetStyles(); }, 2000);
+                }
             } else {
+                // Normales Feedback, wenn Tipps aus sind oder noch < 3 Versuche
                 feedback.innerHTML = `<span class="wrong">Falsch, das ist ${clickedData.name}.</span>`;
             }
             updateScore();
@@ -582,8 +629,9 @@
 
     function highlightLayer(layer, isCorrect) {
         let color = isCorrect ? '#2ecc71' : '#e74c3c'; // grün oder rot
-        // Gelb/Orange verwenden, wenn es nur der Hinweis bei 3 Fehlversuchen ist
-        if (!isCorrect && failedAttempts >= 3) color = '#f1c40f'; 
+        
+        // Gelb/Orange verwenden, wenn es der Hinweis ab 5 Fehlversuchen ist
+        if (!isCorrect && failedAttempts >= 5) color = '#f1c40f'; 
         
         if (layer.setStyle) {
             layer.originalStyle = { 
